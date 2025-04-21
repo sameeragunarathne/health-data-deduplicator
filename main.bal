@@ -17,7 +17,6 @@
 import ballerina/ftp;
 import ballerina/io;
 import ballerina/log;
-import ballerinax/ai;
 import ballerinax/health.fhir.r4;
 
 // FTP Client configuration
@@ -36,15 +35,12 @@ final ftp:ClientConfiguration clientConfig = {
 // Initialize FTP client
 final ftp:Client ftpClient;
 
-// Initialize OpenAI agent
-final ai:Agent deduplicateAgent;
 r4:Bundle finalBundle = {'type: "transaction", 'entry: []};
 string[] resourceSignatureList = [];
 
 function init() returns error? {
     do {
         ftpClient = check new (clientConfig);
-        deduplicateAgent = check new (agentConfiguration);
     } on fail error err {
         log:printError("Failed to initialize clients. Caused by, ", err);
         return error("Failed to initialize clients. Caused by, ", err);
