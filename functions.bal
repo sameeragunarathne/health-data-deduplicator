@@ -16,6 +16,7 @@
 
 import ballerina/ftp;
 import ballerina/log;
+import ballerina/time;
 import ballerina/uuid;
 import ballerinax/health.fhir.r4;
 import ballerinax/health.fhir.r4utils.ccdatofhir;
@@ -52,7 +53,7 @@ function getDuplicateEntries(ResourceSummary[] resourceSummaries) returns Duplic
             boolean isDuplicate = check markDuplicateEntry(resourceSummary);
             if isDuplicate {
                 DuplicateEntry duplicateEntry = {
-                    id: <string>resourceSummary.resourceId,
+                    resourceId: <string>resourceSummary.resourceId,
                     resourceType: resourceSummary.resourceType,
                     confidence: 1.0,
                     reasoning: "Exact match"
@@ -63,24 +64,21 @@ function getDuplicateEntries(ResourceSummary[] resourceSummaries) returns Duplic
         }
         return duplicateEntries;
     } else if deduplicationMode == probabilistic {
-        string agentResponse = check deduplicateAgent->run(query = resourceSummaries.toJsonString(), sessionId = uuid:createType4AsString());
-        agentResponse = re `${"```"}json`.replace(agentResponse, "");
-        agentResponse = re `${"```"}`.replace(agentResponse, "");
+        final time:Utc startTime = time:utcNow();
+        final string sessionId = uuid:createType4AsString();
+        do {
+            string agentResponse = check deduplicateAgent->run(query = resourceSummaries.toJsonString(), sessionId = sessionId);
+            agentResponse = re `${"```"}json`.replace(agentResponse, "");
+            agentResponse = re `${"```"}`.replace(agentResponse, "");
 
-        log:printDebug("FHIR Bundle duplicate identification successful: ", openAiAgentResponse = agentResponse);
+            log:printDebug("FHIR Bundle duplicate identification successful", timeTaken = time:utcDiffSeconds(time:utcNow(), startTime).toString(), openAiAgentResponse = agentResponse, sessionId = sessionId);
 
-        if agentResponse.trim().length() != 0 {
-            json|error jsonAgentResponse = agentResponse.trim().fromJsonString();
-            if jsonAgentResponse is json {
-                DuplicateEntry[]? duplicateEntries = check jsonAgentResponse.cloneWithType();
-                if duplicateEntries is DuplicateEntry[] {
-                    return duplicateEntries;
-                }
-            } else {
-                log:printError("Error parsing agent response to json ", 'error = jsonAgentResponse);
+            if agentResponse.trim().length() != 0 {
+                final json jsonAgentResponse = check agentResponse.trim().fromJsonString();
+                return check jsonAgentResponse.cloneWithType();
             }
-        } else {
-            log:printDebug("Received an empty deduplication response");
+        } on fail error err {
+            log:printDebug("Unable to process agent response. Caused by, ", err, sessionId = sessionId);
         }
     }
 
@@ -435,7 +433,7 @@ function removeDuplicatesFromBundle(DuplicateEntry[] entries, r4:Bundle bundle) 
                 r4:Resource resourceResult = <r4:Resource>bundleEntry?.'resource;
                 string? resourceId = resourceResult.id;
                 if resourceId is string {
-                    if duplicateEntry.id == resourceId {
+                    if duplicateEntry.resourceId == resourceId {
                         int? index = deduplicatedBundleEntries.lastIndexOf(bundleEntry);
                         if index is int {
                             _ = deduplicatedBundleEntries.remove(index);

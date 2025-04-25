@@ -14,20 +14,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import ballerinax/health.fhir.r4;
-
-type DeduplicatedAgentSummary record {|
-    string action;
-    string description;
-    string resourceId;
-    string resourceType;
-|};
-
-type DeduplicatedAgentResponse record {|
-    r4:Bundle bundle;
-    DeduplicatedAgentSummary[] summary;
-|};
-
 type ResourceSummary record {|
     string resourceId?;
     string resourceType;
@@ -35,7 +21,7 @@ type ResourceSummary record {|
 |};
 
 type DuplicateEntry record {|
-    string id;
+    string resourceId;
     string resourceType;
     float confidence;
     string reasoning;
